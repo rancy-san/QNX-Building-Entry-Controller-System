@@ -1,0 +1,109 @@
+INPUTS
+The person's ID number as an integer when scanning their card from the left or right side
+The person's weight as an integer when entering from any side into the middle of both doors
+
+
+OUTPUTS (The side the person is entering from indicates which door the action is performed on)
+"(START) Waiting for enter ID scan:",
+"(SCAN) Scanning card.",
+"(UNLOCK) Unlocking door.",
+"(LOCK) Locking door."
+"(OPEN) Opening door.",
+"(WEIGHT) Waiting for object weight:",
+"(CLOSE) Closing door.",
+"(EXIT) Exiting DES."
+
+
+CONDITIONS
+At the start state, if the current event for the person is "LS" (left scan) and matches "LS" in the DES program that means that the person is coming in from the left side. The next possible state is to have the card ID scanned.
+if(strcmp(person.event, inMessage[LEFT_SCAN]) == 0)
+person.side = left;
+person.state = SCAN_STATE;
+
+At the scan card state, if the current event for the person is "GLU" (Guard Left Unlock) and matches "GLU" in the DES program AND the person is coming in from the left side or right side, move FSM to the unlock state because the scan state can only move to an unlock state.
+if(
+	(strcmp(person.event, inMessage[GUARD_LEFT_UNLOCK]) == 0 && person.side == left)
+	||
+	(strcmp(person.event, inMessage[GUARD_RIGHT_UNLOCK]) == 0 && person.side == right)
+) {
+person.state = UNLOCK_STATE;
+
+At the unlock_state the next state can only be an open door state or else the person cannot proceed through a closed door. This state like every other state responds to comparing the person's event and the DES.h program. Door that is unlocked depends on the side the person is coming in from  as declared from the start_state (LS or RS).
+if(
+	(strcmp(person.event, inMessage[LEFT_OPEN]) == 0 && person.side == left)
+	||
+	(strcmp(person.event, inMessage[RIGHT_OPEN]) == 0 && person.side == right)
+) {
+person.state = OPEN_STATE;
+
+
+At the open_state the state is either the first or second time open_state has been triggered, and the person is either entering into a weight scan, or "leaving". The weight scan can only occur if the person's weight was not weighed initially (weight is 0), which means that the open_state would transition to weight_scan. 
+if(
+	(strcmp(person.event, inMessage[LEFT_OPEN]) == 0 && person.side == left)
+	||
+	(strcmp(person.event, inMessage[RIGHT_OPEN]) == 0 && person.side == right)
+) {
+person.state = WEIGHT_STATE
+
+Otherwise if the person has already been weighed, then the weight would not be 0 because the person has already been weighed, and the person is "leaving".
+if(
+	(strcmp(person.event, inMessage[RIGHT_OPEN] == 0 && person.side == left))
+	||
+	(strcmp(person.event, inMessage[LEFT_OPEN] == 0 && person.side == right))
+) {
+person.state = CLOSED_STATE
+
+At the weight_state the person's weight needs to be entered. It does not matter which side the person is entering from, and the door behind them will close, so the next state is CLOSED_STATE;
+if(
+	strcmp(person.event, inMessage[WEIGHT_SCAN]) == 0
+	&&
+	(person.side == left || person.side == right)
+) {
+person.state = CLOSED_STATE
+
+At the closed_state the door behind the person will close (determined by the side the person came in from), and this door is the open door from the previous state. This door will need to be locked, so the next state is lock_state.
+if(
+	(strcmp(person.event, inMessage[LEFT_CLOSED]) == 0 && person.side == left)
+	||
+	(strcmp(person.event, inMessage[RIGHT_CLOSED]) == 0 && person.side == right)
+) {
+person.state = LOCK_STATE
+
+At the lock_state the door the user will be "exiting" DES (which actually just restarts the FSM by pointing to start_state) if the person is coming from the left side AND the current event is GRL, or from the right side with current event being GLL.
+person.state = START_STATE
+if(
+	(strcmp(person.event, inMessage[GUARD_RIGHT_LOCK]) == 0 && person.side == left)
+	||
+	(strcmp(person.event, inMessage[GUARD_LEFT_LOCK]) == 0 && person.side == right)
+){
+person.state = START_STATE;
+
+Otherwise this is the door that locks right after the person's weight is entered. The door that is locked in this GLL event is when the user is coming from the left side, or the right side if the event is GRL. The next door needs to be unlocked or else the perosn will be stuck in the middle, so the FSM transitions to unlock_state.
+if(
+	(strcmp(person.event, inMessage[GUARD_LEFT_LOCK]) == 0 && person.side == left)
+	||
+	(strcmp(person.event, inMessage[GUARD_RIGHT_LOCK]) == 0 && person.side == right)
+) {
+person.state = UNLOCK_STATE;
+
+At any point DES can be exited by typing exit. It does not matter which side or state the person is currently in.
+if(person.event == inMessage[EXIT]) {
+	exit_state();
+}
+person.state = EXIT_STATE;
+
+
+LIST OF STATES
+#define NUM_STATES 8
+typedef enum {
+	START_STATE = 0,
+	SCAN_STATE = 1,
+	UNLOCK_STATE = 2,
+	OPEN_STATE = 3,
+	WEIGHT_STATE = 4,
+	CLOSED_STATE = 5,
+	LOCK_STATE = 6,
+	EXIT_STATE = 7
+} State;
+
+
